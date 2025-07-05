@@ -1,103 +1,242 @@
-import Image from "next/image";
+'use client';
+
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { QRCodeSVG } from "qrcode.react";
+
+interface MenuItem {
+  id: number;
+  name: string;
+  price: number;
+  image_url: string;
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [menuList, setMenuList] = useState<MenuItem[]>([]);
+  const [cart, setCart] = useState<MenuItem[]>([]);
+  const [lastOrder, setLastOrder] = useState<any>(null);
+  const [successMessage, setSuccessMessage] = useState("");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    async function fetchMenu() {
+      const { data, error } = await supabase.from("menu").select("*");
+      if (!error && data) setMenuList(data);
+    }
+    fetchMenu();
+  }, []);
+
+  const addToCart = (item: MenuItem) => setCart([...cart, item]);
+
+  const handleRemoveItem = (index: number) => {
+    const newCart = [...cart];
+    newCart.splice(index, 1);
+    setCart(newCart);
+  };
+
+  const handleCheckout = async () => {
+  const total = cart.reduce((sum, item) => sum + item.price, 0);
+
+  // 1. Simpan order ke Supabase (tanpa external_id dulu)
+  const { data, error } = await supabase
+    .from("orders")
+    .insert([
+      {
+        items: cart,
+        total: total,
+        status: "Pending",
+      },
+    ])
+    .select();
+
+  if (error || !data?.[0]) {
+    alert("❌ Gagal simpan order: " + error?.message);
+    return;
+  }
+
+  const insertedOrder = data[0];
+
+  // 2. Update external_id = id
+  const { error: updateError } = await supabase
+    .from("orders")
+    .update({ external_id: insertedOrder.id })
+    .eq("id", insertedOrder.id);
+
+  if (updateError) {
+    alert("⚠️ Gagal update external_id: " + updateError.message);
+    return;
+  }
+
+// 3. Buat Invoice URL
+const invoiceRes = await fetch("/api/create-invoice", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    order_id: insertedOrder.id,
+    amount: insertedOrder.total,
+  }),
+});
+
+const invoiceData = await invoiceRes.json();
+
+if (invoiceData.invoice_url) {
+  await supabase
+    .from("orders")
+    .update({ invoice_url: invoiceData.invoice_url })
+    .eq("id", insertedOrder.id);
+
+  insertedOrder.invoice_url = invoiceData.invoice_url;
+}
+
+  // 3. Buat QRIS (Xendit QR Code)
+  // const qrRes = await fetch("/api/create-qr-code", {
+  //   method: "POST",
+  //   headers: { "Content-Type": "application/json" },
+  //   body: JSON.stringify({
+  //     order_id: insertedOrder.id,
+  //     amount: insertedOrder.total,
+  //   }),
+  // });
+
+  // const qrData = await qrRes.json();
+
+  // if (qrData.qr_string) {
+  
+  // // 4. Simpan qr_string ke Supabase
+  //   await supabase
+  //     .from("orders")
+  //     .update({ qr_string: qrData.qr_string })
+  //     .eq("id", insertedOrder.id);
+
+  //   insertedOrder.qr_string = qrData.qr_string;
+  // }
+
+  // 5. Tampilkan struk
+  setCart([]);
+  setSuccessMessage("🎉 Pesanan kamu berhasil dan sudah tersimpan!");
+  setLastOrder(insertedOrder);
+};
+
+
+  const total = cart.reduce((sum, item) => sum + item.price, 0);
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold text-center text-rose-600 mb-6">
+        Daftar Menu Resto 🍽️
+      </h1>
+
+      {/* ✅ Success Message */}
+      {successMessage && (
+        <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+          {successMessage}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
+
+      {/* ✅ Struk Pesanan */}
+      {lastOrder && (
+        <div className="mt-6 mb-6 border rounded-lg p-4 bg-white shadow">
+          <h3 className="text-xl font-bold text-rose-600 mb-2">🧾 Struk Pesanan</h3>
+          <p className="text-sm text-gray-500 mb-3">
+            ID: {lastOrder.id} | Waktu: {new Date(lastOrder.created_at).toLocaleString()}
+          </p>
+          <ul className="list-disc pl-5 space-y-1 mb-2">
+            {lastOrder.items.map((item: any, idx: number) => (
+              <li key={idx}>
+                {item.name} – Rp {item.price.toLocaleString()}
+              </li>
+            ))}
+          </ul>
+          <p className="font-semibold">Total: Rp {lastOrder.total.toLocaleString()}</p>
+          {/* Invoice URL */}
+          {lastOrder.invoice_url && (
+            <div className="mt-4 text-center">
+              <a
+                href={lastOrder.invoice_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
+              >
+                💳 Bayar Sekarang
+              </a>
+              <p className="text-xs mt-2 text-gray-500">
+                Klik untuk bayar via OVO, DANA, ShopeePay, dll
+              </p>
+            </div>
+          )}
+          {/* ✅ QR dari Xendit */}
+          {/* {
+          lastOrder.qr_string && (
+            <div className="mt-4 text-center">
+              <QRCodeSVG value={lastOrder.qr_string} size={128} level="H" includeMargin />
+              <p className="text-xs text-gray-500 mt-2">Scan QRIS untuk bayar via OVO / DANA / Gopay</p>
+            </div>
+          )
+          } */}
+        </div>
+      )}
+
+      {/* ✅ Keranjang */}
+      <div className="mb-6 border rounded-xl p-4 bg-gray-50">
+        <h2 className="text-xl font-semibold mb-2">🛒 Keranjang</h2>
+        {cart.length === 0 ? (
+          <p className="text-sm text-gray-500">Belum ada pesanan</p>
+        ) : (
+          <>
+            <ul className="list-disc pl-5 space-y-1">
+              {cart.map((item, idx) => (
+                <li key={idx} className="flex justify-between items-center">
+                  <span>
+                    {item.name} – Rp {item.price.toLocaleString()}
+                  </span>
+                  <button
+                    onClick={() => handleRemoveItem(idx)}
+                    className="ml-2 text-sm text-red-500 hover:underline"
+                  >
+                    Hapus
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 font-semibold">Total: Rp {total.toLocaleString()}</p>
+          </>
+        )}
+        {cart.length > 0 && (
+          <button
+            onClick={handleCheckout}
+            className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+          >
+            Checkout
+          </button>
+        )}
+      </div>
+
+      {/* ✅ Daftar Menu */}
+      <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
+        {menuList.map((menu) => (
+          <div
+            key={menu.id}
+            className="border rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition"
+          >
+            <img
+              src={menu.image_url}
+              alt={menu.name}
+              className="w-full h-40 object-cover"
+            />
+            <div className="p-4">
+              <h2 className="text-lg font-semibold">{menu.name}</h2>
+              <p className="text-sm text-gray-500">
+                Rp {menu.price.toLocaleString()}
+              </p>
+              <button
+                onClick={() => addToCart(menu)}
+                className="mt-3 bg-rose-500 text-white px-4 py-1 rounded hover:bg-rose-600"
+              >
+                Pesan
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
