@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   try {
     const { order_id, amount } = await req.json();
+    console.log("📨 API Create Invoice dipanggil untuk Order:", order_id);
 
     const response = await fetch("https://api.xendit.co/v2/invoices", {
       method: "POST",
@@ -12,27 +13,29 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         external_id: order_id,
-        amount: amount,
+        amount,
         currency: "IDR",
-        invoice_duration: 3600, // 1 jam
+        invoice_duration: 3600,
         description: "Pembayaran Resto Cinta",
-        success_redirect_url: "https://google.com" // opsional
+        success_redirect_url: "https://resto-app-three-roan.vercel.app/?payment=success",
       }),
     });
 
     const result = await response.json();
 
     if (!response.ok) {
-      console.error("❌ Xendit error:", result);
+      console.error("❌  Xendit error:", result);
       return NextResponse.json({ error: result }, { status: 500 });
     }
+
+    console.log("✅  Invoice berhasil dibuat:", result.id);
 
     return NextResponse.json({
       invoice_url: result.invoice_url,
       invoice_id: result.id,
     });
   } catch (err: any) {
-    console.error("❌ Server Error:", err);
+    console.error("🔥  Server Error:", err);
     return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }
 }
