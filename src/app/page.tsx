@@ -14,8 +14,8 @@ interface Order {
   id: string;
   items: MenuItem[];
   total: number;
-  created_at: string;
   status: string;
+  created_at: string;
   invoice_url?: string;
 }
 
@@ -24,19 +24,17 @@ export default function Home() {
   const [cart, setCart] = useState<MenuItem[]>([]);
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
-  const [isPaidFlow, setIsPaidFlow] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
+  // 1. Cek apakah ada paid_order di URL
   useEffect(() => {
-    console.log('📦 useEffect called');
-
     const params = new URLSearchParams(window.location.search);
     const paidOrderId = params.get('paid_order');
-    console.log('🔎 URL Param paid_order =', paidOrderId);
+    console.log('🔍 URL Parameter: paid_order =', paidOrderId);
 
     if (paidOrderId) {
-      setIsPaidFlow(true);
-      console.log('💳 Detected paid_order in URL');
-
+      // 2. Jika ada, cek ke Supabase statusnya
+      console.log('🔁 Mengecek status order ke Supabase...');
       supabase
         .from('orders')
         .select('*')
@@ -44,34 +42,40 @@ export default function Home() {
         .single()
         .then(({ data, error }) => {
           if (error || !data) {
-            console.error('❌ Gagal ambil data order:', error?.message);
+            console.error('❌ Gagal mengambil order:', error);
             return;
           }
 
+          console.log('📦 Order ditemukan:', data);
           if (data.status === 'Sudah Bayar') {
-            console.log('✅ Order sudah bayar');
-            setSuccessMessage('✅ Pembayaran kamu berhasil!');
+            console.log('✅ Order sudah dibayar, menampilkan notifikasi dan struk');
             setLastOrder(data);
+            setPaymentSuccess(true);
+            setSuccessMessage('✅ Pembayaran kamu berhasil!');
           } else {
-            console.log('⚠️ Order belum bayar');
+            console.log('⏳ Order belum dibayar');
           }
         });
     }
-
-    fetchMenu();
   }, []);
 
-  const fetchMenu = async () => {
-    const { data, error } = await supabase.from('menu').select('*');
-    if (data) {
-      console.log('📥 Menu berhasil dimuat:', data);
-      setMenuList(data);
-    } else {
-      console.error('❌ Gagal load menu:', error?.message);
-    }
-  };
+  useEffect(() => {
+    console.log('📥 Mengambil daftar menu dari Supabase...');
+    supabase
+      .from('menu')
+      .select('*')
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setMenuList(data);
+          console.log('✅ Menu berhasil dimuat:', data);
+        } else {
+          console.error('❌ Gagal mengambil menu:', error);
+        }
+      });
+  }, []);
 
   const addToCart = (item: MenuItem) => {
+    console.log('➕ Menu ditambahkan ke keranjang:', item.name);
     setCart([...cart, item]);
   };
 
@@ -79,14 +83,23 @@ export default function Home() {
     const newCart = [...cart];
     newCart.splice(index, 1);
     setCart(newCart);
+    console.log('🗑️ Item dihapus dari keranjang, index:', index);
   };
 
   const handleCheckout = async () => {
     const total = cart.reduce((sum, item) => sum + item.price, 0);
 
+    console.log('🧾 Memulai proses checkout...');
+
     const { data, error } = await supabase
       .from('orders')
-      .insert([{ items: cart, total, status: 'Pending' }])
+      .insert([
+        {
+          items: cart,
+          total,
+          status: 'Pending',
+        },
+      ])
       .select();
 
     if (error || !data?.[0]) {
@@ -95,11 +108,17 @@ export default function Home() {
     }
 
     const insertedOrder = data[0];
+    console.log('✅ Order berhasil disimpan:', insertedOrder.id);
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('orders')
       .update({ external_id: insertedOrder.id })
       .eq('id', insertedOrder.id);
+
+    if (updateError) {
+      alert('⚠️ Gagal update external_id: ' + updateError.message);
+      return;
+    }
 
     const invoiceRes = await fetch('/api/create-invoice', {
       method: 'POST',
@@ -122,8 +141,9 @@ export default function Home() {
     }
 
     setCart([]);
-    setSuccessMessage('🎉 Pesanan kamu berhasil dan sudah tersimpan!');
     setLastOrder(insertedOrder);
+    setSuccessMessage('🎉 Pesanan kamu berhasil dan sudah tersimpan!');
+    console.log('🧾 Struk ditampilkan dan keranjang dikosongkan');
   };
 
   const total = cart.reduce((sum, item) => sum + item.price, 0);
@@ -144,20 +164,18 @@ export default function Home() {
         <div className="mt-6 mb-6 border rounded-lg p-4 bg-white shadow">
           <h3 className="text-xl font-bold text-rose-600 mb-2">🧾 Struk Pesanan</h3>
           <p className="text-sm text-gray-500 mb-3">
-            ID: {lastOrder.id} | Waktu:{' '}
-            {new Date(lastOrder.created_at).toLocaleString()}
+            ID: {lastOrder.id} | Waktu: {new Date(lastOrder.created_at).toLocaleString()}
           </p>
           <ul className="list-disc pl-5 space-y-1 mb-2">
-            {lastOrder.items.map((item, idx) => (
+            {lastOrder.items.map((item: any, idx: number) => (
               <li key={idx}>
                 {item.name} – Rp {item.price.toLocaleString()}
               </li>
             ))}
           </ul>
-          <p className="font-semibold">
-            Total: Rp {lastOrder.total.toLocaleString()}
-          </p>
-          {!isPaidFlow && lastOrder.invoice_url && (
+          <p className="font-semibold">Total: Rp {lastOrder.total.toLocaleString()}</p>
+
+          {!paymentSuccess && lastOrder.invoice_url && (
             <div className="mt-4 text-center">
               <a
                 href={lastOrder.invoice_url}
@@ -175,44 +193,37 @@ export default function Home() {
         </div>
       )}
 
-      {/* Tetap tampilkan menu meskipun sudah bayar */}
-      {!isPaidFlow && (
-        <div className="mb-6 border rounded-xl p-4 bg-gray-50">
-          <h2 className="text-xl font-semibold mb-2">🛒 Keranjang</h2>
-          {cart.length === 0 ? (
-            <p className="text-sm text-gray-500">Belum ada pesanan</p>
-          ) : (
-            <>
-              <ul className="list-disc pl-5 space-y-1">
-                {cart.map((item, idx) => (
-                  <li key={idx} className="flex justify-between items-center">
-                    <span>
-                      {item.name} – Rp {item.price.toLocaleString()}
-                    </span>
-                    <button
-                      onClick={() => handleRemoveItem(idx)}
-                      className="ml-2 text-sm text-red-500 hover:underline"
-                    >
-                      Hapus
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-2 font-semibold">
-                Total: Rp {total.toLocaleString()}
-              </p>
-            </>
-          )}
-          {cart.length > 0 && (
+      <div className="mb-6 border rounded-xl p-4 bg-gray-50">
+        <h2 className="text-xl font-semibold mb-2">🛒 Keranjang</h2>
+        {cart.length === 0 ? (
+          <p className="text-sm text-gray-500">Belum ada pesanan</p>
+        ) : (
+          <>
+            <ul className="list-disc pl-5 space-y-1">
+              {cart.map((item, idx) => (
+                <li key={idx} className="flex justify-between items-center">
+                  <span>
+                    {item.name} – Rp {item.price.toLocaleString()}
+                  </span>
+                  <button
+                    onClick={() => handleRemoveItem(idx)}
+                    className="ml-2 text-sm text-red-500 hover:underline"
+                  >
+                    Hapus
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 font-semibold">Total: Rp {total.toLocaleString()}</p>
             <button
               onClick={handleCheckout}
               className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
             >
               Checkout
             </button>
-          )}
-        </div>
-      )}
+          </>
+        )}
+      </div>
 
       <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
         {menuList.map((menu) => (
@@ -230,14 +241,12 @@ export default function Home() {
               <p className="text-sm text-gray-500">
                 Rp {menu.price.toLocaleString()}
               </p>
-              {!isPaidFlow && (
-                <button
-                  onClick={() => addToCart(menu)}
-                  className="mt-3 bg-rose-500 text-white px-4 py-1 rounded hover:bg-rose-600"
-                >
-                  Pesan
-                </button>
-              )}
+              <button
+                onClick={() => addToCart(menu)}
+                className="mt-3 bg-rose-500 text-white px-4 py-1 rounded hover:bg-rose-600"
+              >
+                Pesan
+              </button>
             </div>
           </div>
         ))}
