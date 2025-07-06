@@ -18,17 +18,31 @@ export default function Home() {
   const [paidSuccess, setPaidSuccess] = useState(false);
 
   useEffect(() => {
-    async function fetchMenu() {
-      const { data, error } = await supabase.from("menu").select("*");
-      if (!error && data) setMenuList(data);
-    }
-    fetchMenu();
-
-    // ✅ detect payment success via query param
+    // Tangkap ?paid_order=xxxx dari URL
     const params = new URLSearchParams(window.location.search);
-    if (params.get("payment") === "success") {
-      setPaidSuccess(true);
-      console.log("🎉  Pembayaran sukses terdeteksi di URL");
+    const paidOrderId = params.get("paid_order");
+
+    if (paidOrderId) {
+      // Ambil order dari Supabase
+      const fetchPaidOrder = async () => {
+        console.log("🔁 Cek pembayaran dari URL redirect:", paidOrderId);
+
+        const { data, error } = await supabase
+          .from("orders")
+          .select("*")
+          .eq("id", paidOrderId)
+          .single();
+
+        if (data && data.status === "Sudah Bayar") {
+          setLastOrder(data);
+          setSuccessMessage("✅ Pembayaran kamu berhasil!");
+          console.log("✅ Status order sudah bayar:", data);
+        } else {
+          console.warn("⚠️ Tidak ditemukan atau belum bayar:", error || data);
+        }
+      };
+
+      fetchPaidOrder();
     }
   }, []);
 

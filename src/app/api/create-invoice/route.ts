@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
         currency: "IDR",
         invoice_duration: 3600,
         description: "Pembayaran Resto Cinta",
-        success_redirect_url: "https://resto-app-three-roan.vercel.app/?payment=success",
+        success_redirect_url: "https://resto-app-three-roan.vercel.app/?paid_order=${order_id}`",
       }),
     });
 
