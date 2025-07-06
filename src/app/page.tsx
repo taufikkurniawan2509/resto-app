@@ -15,23 +15,24 @@ export default function Home() {
   const [cart, setCart] = useState<MenuItem[]>([]);
   const [lastOrder, setLastOrder] = useState<any>(null);
   const [successMessage, setSuccessMessage] = useState("");
+  const [paidSuccess, setPaidSuccess] = useState(false);
 
-  // Fetch menu saat halaman dimuat
   useEffect(() => {
     async function fetchMenu() {
       const { data, error } = await supabase.from("menu").select("*");
-      if (error) {
-        console.error("❌ Gagal ambil menu:", error.message);
-      } else {
-        setMenuList(data || []);
-      }
+      if (!error && data) setMenuList(data);
     }
     fetchMenu();
+
+    // ✅ detect payment success via query param
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("payment") === "success") {
+      setPaidSuccess(true);
+      console.log("🎉  Pembayaran sukses terdeteksi di URL");
+    }
   }, []);
 
-  const addToCart = (item: MenuItem) => {
-    setCart([...cart, item]);
-  };
+  const addToCart = (item: MenuItem) => setCart([...cart, item]);
 
   const handleRemoveItem = (index: number) => {
     const newCart = [...cart];
@@ -41,76 +42,54 @@ export default function Home() {
 
   const handleCheckout = async () => {
     const total = cart.reduce((sum, item) => sum + item.price, 0);
+    console.log("🛒  Mulai checkout dengan total:", total);
 
-    // 1. Simpan ke Supabase
     const { data, error } = await supabase
       .from("orders")
-      .insert([
-        {
-          items: cart,
-          total: total,
-          status: "Pending",
-        },
-      ])
+      .insert([{ items: cart, total, status: "Pending" }])
       .select();
 
     if (error || !data?.[0]) {
-      console.error("❌ Gagal insert order:", error?.message);
-      alert("Gagal simpan order: " + error?.message);
+      alert("❌ Gagal simpan order: " + error?.message);
       return;
     }
 
     const insertedOrder = data[0];
-    console.log("✅ Order berhasil disimpan:", insertedOrder);
+    console.log("✅  Order berhasil disimpan:", insertedOrder.id);
 
-    // 2. Update external_id
     const { error: updateError } = await supabase
       .from("orders")
       .update({ external_id: insertedOrder.id })
       .eq("id", insertedOrder.id);
 
     if (updateError) {
-      console.error("⚠️ Gagal update external_id:", updateError.message);
-      alert("Gagal update external_id: " + updateError.message);
+      alert("⚠️ Gagal update external_id: " + updateError.message);
       return;
     }
 
-    // 3. Buat Invoice ke API internal
-    try {
-      const invoiceRes = await fetch("/api/create-invoice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          order_id: insertedOrder.id,
-          amount: insertedOrder.total,
-        }),
-      });
+    console.log("🔗  external_id sudah di-update");
 
-      if (!invoiceRes.ok) {
-        const errorText = await invoiceRes.text();
-        console.error("❌ Gagal panggil /api/create-invoice:", errorText);
-        alert("Gagal membuat invoice. Silakan coba lagi.");
-        return;
-      }
+    const invoiceRes = await fetch("/api/create-invoice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        order_id: insertedOrder.id,
+        amount: insertedOrder.total,
+      }),
+    });
 
-      const invoiceData = await invoiceRes.json();
-      console.log("🧾 Invoice berhasil dibuat:", invoiceData);
+    const invoiceData = await invoiceRes.json();
 
-      // 4. Simpan invoice_url ke Supabase
+    if (invoiceData.invoice_url) {
       await supabase
         .from("orders")
         .update({ invoice_url: invoiceData.invoice_url })
         .eq("id", insertedOrder.id);
 
       insertedOrder.invoice_url = invoiceData.invoice_url;
-
-    } catch (err) {
-      console.error("🔥 Gagal membuat invoice:", err);
-      alert("Terjadi kesalahan saat membuat invoice.");
-      return;
+      console.log("💳  Invoice URL berhasil dibuat dan disimpan");
     }
 
-    // 5. Update UI
     setCart([]);
     setSuccessMessage("🎉 Pesanan kamu berhasil dan sudah tersimpan!");
     setLastOrder(insertedOrder);
@@ -130,6 +109,12 @@ export default function Home() {
         </div>
       )}
 
+      {paidSuccess && (
+        <div className="mb-4 p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded">
+          ✅ Pembayaran kamu berhasil!
+        </div>
+      )}
+
       {lastOrder && (
         <div className="mt-6 mb-6 border rounded-lg p-4 bg-white shadow">
           <h3 className="text-xl font-bold text-rose-600 mb-2">🧾 Struk Pesanan</h3>
@@ -145,7 +130,8 @@ export default function Home() {
           </ul>
           <p className="font-semibold">Total: Rp {lastOrder.total.toLocaleString()}</p>
 
-          {lastOrder.invoice_url && (
+          {/* ✅ Button hanya muncul kalau belum bayar */}
+          {!paidSuccess && lastOrder.invoice_url && (
             <div className="mt-4 text-center">
               <a
                 href={lastOrder.invoice_url}
@@ -163,7 +149,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Keranjang */}
       <div className="mb-6 border rounded-xl p-4 bg-gray-50">
         <h2 className="text-xl font-semibold mb-2">🛒 Keranjang</h2>
         {cart.length === 0 ? (
@@ -198,7 +183,6 @@ export default function Home() {
         )}
       </div>
 
-      {/* Daftar Menu */}
       <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
         {menuList.map((menu) => (
           <div
