@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 interface MenuItem {
@@ -16,74 +15,65 @@ export default function Home() {
   const [cart, setCart] = useState<MenuItem[]>([]);
   const [lastOrder, setLastOrder] = useState<any>(null);
   const [successMessage, setSuccessMessage] = useState("");
-  const searchParams = useSearchParams();
-  const paidOrderId = searchParams.get("paid_order");
+  const [isPaid, setIsPaid] = useState(false);
 
+  // ✅ Flow 1: Cek apakah URL mengandung ?paid_order
   useEffect(() => {
-    console.log("🚀 useEffect start");
-    async function fetchMenu() {
-      console.log("📦 Fetching menu...");
-      const { data, error } = await supabase.from("menu").select("*");
-      if (!error && data) {
-        console.log("✅ Menu fetched:", data);
-        setMenuList(data);
-      } else {
-        console.error("❌ Error fetching menu:", error);
-      }
+    const query = window.location.search;
+    console.log("🔍 Query param:", query);
+
+    if (query.includes("paid_order=")) {
+      const orderId = query.split("paid_order=")[1];
+      console.log("✅ Ditemukan paid_order:", orderId);
+      setIsPaid(true);
+      fetchPaidOrder(orderId);
+    } else {
+      console.log("ℹ️ Tidak ada paid_order di URL. Menampilkan menu normal");
+      fetchMenu();
     }
+  }, []);
 
-    async function fetchPaidOrder() {
-      if (paidOrderId) {
-        console.log("🔎 paid_order param found:", paidOrderId);
-        const { data, error } = await supabase
-          .from("orders")
-          .select("*")
-          .eq("id", paidOrderId)
-          .single();
-
-        if (!error && data) {
-          console.log("✅ Fetched paid order:", data);
-          setSuccessMessage("✅ Pembayaran kamu berhasil!");
-          setLastOrder(data);
-        } else {
-          console.error("❌ Error fetching paid order:", error);
-        }
-      }
+  // ✅ Flow 2: Fetch menu dari supabase
+  const fetchMenu = async () => {
+    console.log("📦 Memuat daftar menu...");
+    const { data, error } = await supabase.from("menu").select("*");
+    if (!error && data) {
+      setMenuList(data);
+      console.log("✅ Menu berhasil dimuat:", data);
+    } else {
+      console.error("❌ Gagal load menu:", error);
     }
+  };
 
-    fetchMenu();
-    fetchPaidOrder();
-  }, [paidOrderId]);
-
+  // ✅ Flow 3: Tambah ke keranjang
   const addToCart = (item: MenuItem) => {
-    console.log("➕ Adding to cart:", item);
+    console.log("➕ Tambah ke keranjang:", item);
     setCart([...cart, item]);
   };
 
+  // ✅ Flow 4: Hapus item dari keranjang
   const handleRemoveItem = (index: number) => {
-    console.log("🗑️ Removing item from cart index:", index);
     const newCart = [...cart];
     newCart.splice(index, 1);
     setCart(newCart);
   };
 
+  // ✅ Flow 5: Checkout
   const handleCheckout = async () => {
     const total = cart.reduce((sum, item) => sum + item.price, 0);
-    console.log("💰 Total checkout:", total);
+    console.log("💳 Checkout dengan total:", total);
 
     const { data, error } = await supabase
       .from("orders")
-      .insert([{ items: cart, total, status: "Pending" }])
+      .insert([{ items: cart, total: total, status: "Pending" }])
       .select();
 
     if (error || !data?.[0]) {
       alert("❌ Gagal simpan order: " + error?.message);
-      console.error("❌ Error inserting order:", error);
       return;
     }
 
     const insertedOrder = data[0];
-    console.log("📝 Order inserted:", insertedOrder);
 
     const { error: updateError } = await supabase
       .from("orders")
@@ -92,7 +82,6 @@ export default function Home() {
 
     if (updateError) {
       alert("⚠️ Gagal update external_id: " + updateError.message);
-      console.error("⚠️ Error updating external_id:", updateError);
       return;
     }
 
@@ -106,7 +95,6 @@ export default function Home() {
     });
 
     const invoiceData = await invoiceRes.json();
-    console.log("🧾 Invoice response:", invoiceData);
 
     if (invoiceData.invoice_url) {
       await supabase
@@ -114,11 +102,32 @@ export default function Home() {
         .update({ invoice_url: invoiceData.invoice_url })
         .eq("id", insertedOrder.id);
 
-      console.log("➡️ Redirecting to invoice...");
-      window.location.href = invoiceData.invoice_url;
+      insertedOrder.invoice_url = invoiceData.invoice_url;
+      console.log("✅ Invoice berhasil dibuat:", invoiceData.invoice_url);
     } else {
-      alert("❌ Gagal membuat invoice.");
-      console.error("❌ Invoice creation failed:", invoiceData);
+      console.error("❌ Gagal membuat invoice:", invoiceData);
+    }
+
+    setCart([]);
+    setSuccessMessage("🎉 Pesanan kamu berhasil dan sudah tersimpan!");
+    setLastOrder(insertedOrder);
+  };
+
+  // ✅ Flow 6: Jika redirect setelah payment sukses
+  const fetchPaidOrder = async (orderId: string) => {
+    console.log("🔄 Mengambil data order berdasarkan paid_order:", orderId);
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("id", orderId)
+      .single();
+
+    if (error) {
+      console.error("❌ Gagal fetch order:", error.message);
+    } else {
+      setLastOrder(data);
+      setSuccessMessage("✅ Pembayaran kamu berhasil!");
+      console.log("✅ Order setelah pembayaran:", data);
     }
   };
 
@@ -130,10 +139,9 @@ export default function Home() {
         Daftar Menu Resto 🍽️
       </h1>
 
-      {/* ✅ Success Message */}
       {successMessage && (
         <div className="mb-4 p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded">
-          {successMessage}
+          ✅ {successMessage}
         </div>
       )}
 
@@ -152,11 +160,27 @@ export default function Home() {
             ))}
           </ul>
           <p className="font-semibold">Total: Rp {lastOrder.total.toLocaleString()}</p>
+
+          {!isPaid && lastOrder.invoice_url && (
+            <div className="mt-4 text-center">
+              <a
+                href={lastOrder.invoice_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
+              >
+                💳 Bayar Sekarang
+              </a>
+              <p className="text-xs mt-2 text-gray-500">
+                Klik untuk bayar via OVO, DANA, ShopeePay, dll
+              </p>
+            </div>
+          )}
         </div>
       )}
 
       {/* ✅ Keranjang */}
-      {!paidOrderId && (
+      {!isPaid && (
         <div className="mb-6 border rounded-xl p-4 bg-gray-50">
           <h2 className="text-xl font-semibold mb-2">🛒 Keranjang</h2>
           {cart.length === 0 ? (
@@ -209,7 +233,7 @@ export default function Home() {
               <p className="text-sm text-gray-500">
                 Rp {menu.price.toLocaleString()}
               </p>
-              {!paidOrderId && (
+              {!isPaid && (
                 <button
                   onClick={() => addToCart(menu)}
                   className="mt-3 bg-rose-500 text-white px-4 py-1 rounded hover:bg-rose-600"
