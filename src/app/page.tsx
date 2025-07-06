@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import Link from 'next/link';
 
 interface MenuItem {
   id: number;
@@ -189,12 +190,12 @@ export default function Home() {
       {/* Jika dalam mode paid_order, tidak tampilkan menu & keranjang */}
       {paidOrderMode && (
         <div className="text-center mt-6">
-          <a
-            href="/"
-            className="inline-block bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
-          >
-            🔙 Kembali ke Menu
-          </a>
+          <Link
+              href="/"
+              className="inline-block bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
+            >
+              🔙 Kembali ke Menu
+            </Link>
         </div>
       )}
 
