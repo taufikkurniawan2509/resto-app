@@ -25,6 +25,7 @@ export default function Home() {
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [paidOrderMode, setPaidOrderMode] = useState(false);
 
   // 1. Cek apakah ada paid_order di URL
   useEffect(() => {
@@ -33,8 +34,10 @@ export default function Home() {
     console.log('🔍 URL Parameter: paid_order =', paidOrderId);
 
     if (paidOrderId) {
-      // 2. Jika ada, cek ke Supabase statusnya
-      console.log('🔁 Mengecek status order ke Supabase...');
+      setPaidOrderMode(true);
+      console.log('✅ Mode paid_order aktif');
+
+      // 2. Jika ada, cek status di Supabase
       supabase
         .from('orders')
         .select('*')
@@ -48,19 +51,21 @@ export default function Home() {
 
           console.log('📦 Order ditemukan:', data);
           if (data.status === 'Sudah Bayar') {
-            console.log('✅ Order sudah dibayar, menampilkan notifikasi dan struk');
-            setLastOrder(data);
             setPaymentSuccess(true);
+            setLastOrder(data);
             setSuccessMessage('✅ Pembayaran kamu berhasil!');
+            console.log('🎉 Menampilkan struk & notifikasi sukses');
           } else {
-            console.log('⏳ Order belum dibayar');
+            console.warn('⚠️ Order belum dibayar');
           }
         });
     }
   }, []);
 
+  // Ambil daftar menu (jika bukan dalam mode paid_order)
   useEffect(() => {
-    console.log('📥 Mengambil daftar menu dari Supabase...');
+    if (paidOrderMode) return;
+    console.log('📥 Mengambil daftar menu...');
     supabase
       .from('menu')
       .select('*')
@@ -69,13 +74,13 @@ export default function Home() {
           setMenuList(data);
           console.log('✅ Menu berhasil dimuat:', data);
         } else {
-          console.error('❌ Gagal mengambil menu:', error);
+          console.error('❌ Gagal ambil menu:', error);
         }
       });
-  }, []);
+  }, [paidOrderMode]);
 
   const addToCart = (item: MenuItem) => {
-    console.log('➕ Menu ditambahkan ke keranjang:', item.name);
+    console.log('➕ Tambah ke keranjang:', item.name);
     setCart([...cart, item]);
   };
 
@@ -83,23 +88,16 @@ export default function Home() {
     const newCart = [...cart];
     newCart.splice(index, 1);
     setCart(newCart);
-    console.log('🗑️ Item dihapus dari keranjang, index:', index);
+    console.log('🗑️ Hapus dari keranjang, index:', index);
   };
 
   const handleCheckout = async () => {
     const total = cart.reduce((sum, item) => sum + item.price, 0);
-
-    console.log('🧾 Memulai proses checkout...');
+    console.log('🧾 Proses checkout...');
 
     const { data, error } = await supabase
       .from('orders')
-      .insert([
-        {
-          items: cart,
-          total,
-          status: 'Pending',
-        },
-      ])
+      .insert([{ items: cart, total, status: 'Pending' }])
       .select();
 
     if (error || !data?.[0]) {
@@ -108,17 +106,12 @@ export default function Home() {
     }
 
     const insertedOrder = data[0];
-    console.log('✅ Order berhasil disimpan:', insertedOrder.id);
+    console.log('✅ Order berhasil:', insertedOrder.id);
 
-    const { error: updateError } = await supabase
+    await supabase
       .from('orders')
       .update({ external_id: insertedOrder.id })
       .eq('id', insertedOrder.id);
-
-    if (updateError) {
-      alert('⚠️ Gagal update external_id: ' + updateError.message);
-      return;
-    }
 
     const invoiceRes = await fetch('/api/create-invoice', {
       method: 'POST',
@@ -143,7 +136,7 @@ export default function Home() {
     setCart([]);
     setLastOrder(insertedOrder);
     setSuccessMessage('🎉 Pesanan kamu berhasil dan sudah tersimpan!');
-    console.log('🧾 Struk ditampilkan dan keranjang dikosongkan');
+    console.log('🧾 Struk ditampilkan');
   };
 
   const total = cart.reduce((sum, item) => sum + item.price, 0);
@@ -193,64 +186,82 @@ export default function Home() {
         </div>
       )}
 
-      <div className="mb-6 border rounded-xl p-4 bg-gray-50">
-        <h2 className="text-xl font-semibold mb-2">🛒 Keranjang</h2>
-        {cart.length === 0 ? (
-          <p className="text-sm text-gray-500">Belum ada pesanan</p>
-        ) : (
-          <>
-            <ul className="list-disc pl-5 space-y-1">
-              {cart.map((item, idx) => (
-                <li key={idx} className="flex justify-between items-center">
-                  <span>
-                    {item.name} – Rp {item.price.toLocaleString()}
-                  </span>
-                  <button
-                    onClick={() => handleRemoveItem(idx)}
-                    className="ml-2 text-sm text-red-500 hover:underline"
-                  >
-                    Hapus
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-2 font-semibold">Total: Rp {total.toLocaleString()}</p>
-            <button
-              onClick={handleCheckout}
-              className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-            >
-              Checkout
-            </button>
-          </>
-        )}
-      </div>
-
-      <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
-        {menuList.map((menu) => (
-          <div
-            key={menu.id}
-            className="border rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition"
+      {/* Jika dalam mode paid_order, tidak tampilkan menu & keranjang */}
+      {paidOrderMode && (
+        <div className="text-center mt-6">
+          <a
+            href="/"
+            className="inline-block bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
           >
-            <img
-              src={menu.image_url}
-              alt={menu.name}
-              className="w-full h-40 object-cover"
-            />
-            <div className="p-4">
-              <h2 className="text-lg font-semibold">{menu.name}</h2>
-              <p className="text-sm text-gray-500">
-                Rp {menu.price.toLocaleString()}
-              </p>
-              <button
-                onClick={() => addToCart(menu)}
-                className="mt-3 bg-rose-500 text-white px-4 py-1 rounded hover:bg-rose-600"
-              >
-                Pesan
-              </button>
-            </div>
+            🔙 Kembali ke Menu
+          </a>
+        </div>
+      )}
+
+      {!paidOrderMode && (
+        <>
+          {/* Keranjang */}
+          <div className="mb-6 border rounded-xl p-4 bg-gray-50">
+            <h2 className="text-xl font-semibold mb-2">🛒 Keranjang</h2>
+            {cart.length === 0 ? (
+              <p className="text-sm text-gray-500">Belum ada pesanan</p>
+            ) : (
+              <>
+                <ul className="list-disc pl-5 space-y-1">
+                  {cart.map((item, idx) => (
+                    <li key={idx} className="flex justify-between items-center">
+                      <span>
+                        {item.name} – Rp {item.price.toLocaleString()}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveItem(idx)}
+                        className="ml-2 text-sm text-red-500 hover:underline"
+                      >
+                        Hapus
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 font-semibold">Total: Rp {total.toLocaleString()}</p>
+                <button
+                  onClick={handleCheckout}
+                  className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                >
+                  Checkout
+                </button>
+              </>
+            )}
           </div>
-        ))}
-      </div>
+
+          {/* Menu List */}
+          <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
+            {menuList.map((menu) => (
+              <div
+                key={menu.id}
+                className="border rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition"
+              >
+                <img
+                  src={menu.image_url}
+                  alt={menu.name}
+                  className="w-full h-40 object-cover"
+                />
+                <div className="p-4">
+                  <h2 className="text-lg font-semibold">{menu.name}</h2>
+                  <p className="text-sm text-gray-500">
+                    Rp {menu.price.toLocaleString()}
+                  </p>
+                  <button
+                    onClick={() => addToCart(menu)}
+                    className="mt-3 bg-rose-500 text-white px-4 py-1 rounded hover:bg-rose-600"
+                  >
+                    Pesan
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
