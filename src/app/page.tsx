@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { QRCodeSVG } from "qrcode.react";
 
 interface MenuItem {
   id: number;
@@ -17,15 +16,22 @@ export default function Home() {
   const [lastOrder, setLastOrder] = useState<any>(null);
   const [successMessage, setSuccessMessage] = useState("");
 
+  // Fetch menu saat halaman dimuat
   useEffect(() => {
     async function fetchMenu() {
       const { data, error } = await supabase.from("menu").select("*");
-      if (!error && data) setMenuList(data);
+      if (error) {
+        console.error("❌ Gagal ambil menu:", error.message);
+      } else {
+        setMenuList(data || []);
+      }
     }
     fetchMenu();
   }, []);
 
-  const addToCart = (item: MenuItem) => setCart([...cart, item]);
+  const addToCart = (item: MenuItem) => {
+    setCart([...cart, item]);
+  };
 
   const handleRemoveItem = (index: number) => {
     const newCart = [...cart];
@@ -34,88 +40,81 @@ export default function Home() {
   };
 
   const handleCheckout = async () => {
-  const total = cart.reduce((sum, item) => sum + item.price, 0);
+    const total = cart.reduce((sum, item) => sum + item.price, 0);
 
-  // 1. Simpan order ke Supabase (tanpa external_id dulu)
-  const { data, error } = await supabase
-    .from("orders")
-    .insert([
-      {
-        items: cart,
-        total: total,
-        status: "Pending",
-      },
-    ])
-    .select();
+    // 1. Simpan ke Supabase
+    const { data, error } = await supabase
+      .from("orders")
+      .insert([
+        {
+          items: cart,
+          total: total,
+          status: "Pending",
+        },
+      ])
+      .select();
 
-  if (error || !data?.[0]) {
-    alert("❌ Gagal simpan order: " + error?.message);
-    return;
-  }
+    if (error || !data?.[0]) {
+      console.error("❌ Gagal insert order:", error?.message);
+      alert("Gagal simpan order: " + error?.message);
+      return;
+    }
 
-  const insertedOrder = data[0];
+    const insertedOrder = data[0];
+    console.log("✅ Order berhasil disimpan:", insertedOrder);
 
-  // 2. Update external_id = id
-  const { error: updateError } = await supabase
-    .from("orders")
-    .update({ external_id: insertedOrder.id })
-    .eq("id", insertedOrder.id);
+    // 2. Update external_id
+    const { error: updateError } = await supabase
+      .from("orders")
+      .update({ external_id: insertedOrder.id })
+      .eq("id", insertedOrder.id);
 
-  if (updateError) {
-    alert("⚠️ Gagal update external_id: " + updateError.message);
-    return;
-  }
+    if (updateError) {
+      console.error("⚠️ Gagal update external_id:", updateError.message);
+      alert("Gagal update external_id: " + updateError.message);
+      return;
+    }
 
-// 3. Buat Invoice URL
-const invoiceRes = await fetch("/api/create-invoice", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    order_id: insertedOrder.id,
-    amount: insertedOrder.total,
-  }),
-});
+    // 3. Buat Invoice ke API internal
+    try {
+      const invoiceRes = await fetch("/api/create-invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: insertedOrder.id,
+          amount: insertedOrder.total,
+        }),
+      });
 
-const invoiceData = await invoiceRes.json();
+      if (!invoiceRes.ok) {
+        const errorText = await invoiceRes.text();
+        console.error("❌ Gagal panggil /api/create-invoice:", errorText);
+        alert("Gagal membuat invoice. Silakan coba lagi.");
+        return;
+      }
 
-if (invoiceData.invoice_url) {
-  await supabase
-    .from("orders")
-    .update({ invoice_url: invoiceData.invoice_url })
-    .eq("id", insertedOrder.id);
+      const invoiceData = await invoiceRes.json();
+      console.log("🧾 Invoice berhasil dibuat:", invoiceData);
 
-  insertedOrder.invoice_url = invoiceData.invoice_url;
-}
+      // 4. Simpan invoice_url ke Supabase
+      await supabase
+        .from("orders")
+        .update({ invoice_url: invoiceData.invoice_url })
+        .eq("id", insertedOrder.id);
 
-  // 3. Buat QRIS (Xendit QR Code)
-  // const qrRes = await fetch("/api/create-qr-code", {
-  //   method: "POST",
-  //   headers: { "Content-Type": "application/json" },
-  //   body: JSON.stringify({
-  //     order_id: insertedOrder.id,
-  //     amount: insertedOrder.total,
-  //   }),
-  // });
+      insertedOrder.invoice_url = invoiceData.invoice_url;
 
-  // const qrData = await qrRes.json();
+    } catch (err) {
+      console.error("🔥 Gagal membuat invoice:", err);
+      alert("Terjadi kesalahan saat membuat invoice.");
+      return;
+    }
 
-  // if (qrData.qr_string) {
-  
-  // // 4. Simpan qr_string ke Supabase
-  //   await supabase
-  //     .from("orders")
-  //     .update({ qr_string: qrData.qr_string })
-  //     .eq("id", insertedOrder.id);
-
-  //   insertedOrder.qr_string = qrData.qr_string;
-  // }
-
-  // 5. Tampilkan struk
-  setCart([]);
-  setSuccessMessage("🎉 Pesanan kamu berhasil dan sudah tersimpan!");
-  setLastOrder(insertedOrder);
-};
-
+    // 5. Update UI
+    setCart([]);
+    setSuccessMessage("🎉 Pesanan kamu berhasil dan sudah tersimpan!");
+    setLastOrder(insertedOrder);
+  };
 
   const total = cart.reduce((sum, item) => sum + item.price, 0);
 
@@ -125,14 +124,12 @@ if (invoiceData.invoice_url) {
         Daftar Menu Resto 🍽️
       </h1>
 
-      {/* ✅ Success Message */}
       {successMessage && (
         <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
           {successMessage}
         </div>
       )}
 
-      {/* ✅ Struk Pesanan */}
       {lastOrder && (
         <div className="mt-6 mb-6 border rounded-lg p-4 bg-white shadow">
           <h3 className="text-xl font-bold text-rose-600 mb-2">🧾 Struk Pesanan</h3>
@@ -147,7 +144,7 @@ if (invoiceData.invoice_url) {
             ))}
           </ul>
           <p className="font-semibold">Total: Rp {lastOrder.total.toLocaleString()}</p>
-          {/* Invoice URL */}
+
           {lastOrder.invoice_url && (
             <div className="mt-4 text-center">
               <a
@@ -163,19 +160,10 @@ if (invoiceData.invoice_url) {
               </p>
             </div>
           )}
-          {/* ✅ QR dari Xendit */}
-          {/* {
-          lastOrder.qr_string && (
-            <div className="mt-4 text-center">
-              <QRCodeSVG value={lastOrder.qr_string} size={128} level="H" includeMargin />
-              <p className="text-xs text-gray-500 mt-2">Scan QRIS untuk bayar via OVO / DANA / Gopay</p>
-            </div>
-          )
-          } */}
         </div>
       )}
 
-      {/* ✅ Keranjang */}
+      {/* Keranjang */}
       <div className="mb-6 border rounded-xl p-4 bg-gray-50">
         <h2 className="text-xl font-semibold mb-2">🛒 Keranjang</h2>
         {cart.length === 0 ? (
@@ -210,7 +198,7 @@ if (invoiceData.invoice_url) {
         )}
       </div>
 
-      {/* ✅ Daftar Menu */}
+      {/* Daftar Menu */}
       <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
         {menuList.map((menu) => (
           <div
