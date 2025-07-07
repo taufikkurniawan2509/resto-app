@@ -176,7 +176,7 @@ export default function Home() {
         <div className="mt-6 mb-6 border rounded-lg p-4 bg-white shadow">
           <h3 className="text-xl font-bold text-rose-600 mb-2">🧾 Struk Pesanan</h3>
           <p className="text-sm text-gray-500 mb-2">
-            ID: {lastOrder.id} | Waktu: {new Date(lastOrder.created_at).toLocaleString()}
+            ID: ORD-{lastOrder.id.slice(0, 8).toUpperCase()} | Waktu: {new Date(lastOrder.created_at).toLocaleString()}
           </p>
           {lastOrder.table_number && (
             <p className="text-sm text-gray-600 mb-3">🪑 Meja: {lastOrder.table_number}</p>
@@ -186,7 +186,7 @@ export default function Home() {
               .sort((a, b) => a.name.localeCompare(b.name))
               .map((item, idx) => (
                 <li key={idx}>
-                  {item.name} x{item.quantity} – Rp {(item.price * item.quantity).toLocaleString()}
+                  {item.name} x{item.quantity} – Rp {item.price} = Rp {(item.price * item.quantity).toLocaleString()}
                 </li>
               ))}
           </ul>
@@ -248,7 +248,7 @@ export default function Home() {
                   {cart.map((item, idx) => (
                     <li key={idx} className="flex justify-between items-center">
                       <span>
-                        {item.name} x{item.quantity} – Rp {(item.price * item.quantity).toLocaleString()}
+                        {item.name} x{item.quantity} – Rp {item.price} = Rp {(item.price * item.quantity).toLocaleString()}
                       </span>
                       <button
                         onClick={() => removeFromCart(item.id)}
