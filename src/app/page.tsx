@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import Link from 'next/link';
 
+// Interface menu dan keranjang
 interface MenuItem {
   id: number;
   name: string;
@@ -22,6 +23,7 @@ interface Order {
   status: string;
   created_at: string;
   invoice_url?: string;
+  table_number?: number; // tambahkan nomor meja
 }
 
 export default function Home() {
@@ -31,7 +33,9 @@ export default function Home() {
   const [successMessage, setSuccessMessage] = useState('');
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [paidOrderMode, setPaidOrderMode] = useState(false);
+  const [selectedTable, setSelectedTable] = useState<number | ''>(''); // nomor meja
 
+  // Cek apakah ada parameter ?paid_order (jika ya, mode lihat struk)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paidOrderId = params.get('paid_order');
@@ -53,6 +57,7 @@ export default function Home() {
     }
   }, []);
 
+  // Load menu dari Supabase
   useEffect(() => {
     if (paidOrderMode) return;
     supabase
@@ -61,6 +66,7 @@ export default function Home() {
       .then(({ data }) => data && setMenuList(data));
   }, [paidOrderMode]);
 
+  // Tambahkan item ke keranjang
   const addToCart = (item: MenuItem) => {
     setCart(prev => {
       const found = prev.find(ci => ci.id === item.id);
@@ -74,6 +80,7 @@ export default function Home() {
     });
   };
 
+  // Kurangi jumlah item dari keranjang
   const removeFromCart = (itemId: number) => {
     setCart(prev =>
       prev
@@ -84,12 +91,27 @@ export default function Home() {
     );
   };
 
+  // Fungsi untuk proses checkout
   const handleCheckout = async () => {
+    if (!selectedTable) {
+      alert('⚠️ Mohon pilih nomor meja terlebih dahulu.');
+      return;
+    }
+
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+    console.log('🛒 Checkout triggered. Total:', total);
+    console.log('📦 Items:', cart);
+    console.log('🪑 Meja:', selectedTable);
 
     const { data, error } = await supabase
       .from('orders')
-      .insert([{ items: cart, total, status: 'Pending' }])
+      .insert([{
+        items: cart,
+        total,
+        status: 'Pending',
+        table_number: selectedTable
+      }])
       .select();
 
     if (error || !data?.[0]) {
@@ -99,11 +121,13 @@ export default function Home() {
 
     const insertedOrder = data[0];
 
+    // Simpan external_id = id
     await supabase
       .from('orders')
       .update({ external_id: insertedOrder.id })
       .eq('id', insertedOrder.id);
 
+    // Generate invoice via API
     const invoiceRes = await fetch('/api/create-invoice', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -125,6 +149,7 @@ export default function Home() {
     }
 
     setCart([]);
+    setSelectedTable('');
     setLastOrder(insertedOrder);
     setSuccessMessage('🎉 Pesanan kamu berhasil dan sudah tersimpan!');
   };
@@ -143,12 +168,16 @@ export default function Home() {
         </div>
       )}
 
+      {/* STRUK ORDER */}
       {lastOrder && (
         <div className="mt-6 mb-6 border rounded-lg p-4 bg-white shadow">
           <h3 className="text-xl font-bold text-rose-600 mb-2">🧾 Struk Pesanan</h3>
-          <p className="text-sm text-gray-500 mb-3">
+          <p className="text-sm text-gray-500 mb-2">
             ID: {lastOrder.id} | Waktu: {new Date(lastOrder.created_at).toLocaleString()}
           </p>
+          {lastOrder.table_number && (
+            <p className="text-sm text-gray-600 mb-3">🪑 Meja: {lastOrder.table_number}</p>
+          )}
           <ul className="list-disc pl-5 space-y-1 mb-2">
             {lastOrder.items.map((item, idx) => (
               <li key={idx}>
@@ -173,6 +202,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* TOMBOL KEMBALI KE MENU */}
       {paidOrderMode && (
         <div className="text-center mt-6">
           <button
@@ -184,8 +214,25 @@ export default function Home() {
         </div>
       )}
 
+      {/* FORM ORDER */}
       {!paidOrderMode && (
         <>
+          {/* PILIH MEJA */}
+          <div className="mb-6 border rounded-xl p-4 bg-gray-50">
+            <label className="block mb-2 font-semibold">🪑 Pilih Nomor Meja</label>
+            <select
+              className="border px-3 py-2 rounded w-full"
+              value={selectedTable}
+              onChange={(e) => setSelectedTable(Number(e.target.value))}
+            >
+              <option value="">-- Pilih Meja --</option>
+              {Array.from({ length: 20 }, (_, i) => i + 1).map(num => (
+                <option key={num} value={num}>Meja {num}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* KERANJANG */}
           <div className="mb-6 border rounded-xl p-4 bg-gray-50">
             <h2 className="text-xl font-semibold mb-2">🛒 Keranjang</h2>
             {cart.length === 0 ? (
@@ -218,6 +265,7 @@ export default function Home() {
             )}
           </div>
 
+          {/* DAFTAR MENU */}
           <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
             {menuList.map((menu) => (
               <div
