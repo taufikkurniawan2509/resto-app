@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import Link from 'next/link';
 
-// Interface menu dan keranjang
 interface MenuItem {
   id: number;
   name: string;
   price: number;
   image_url: string;
+  category: string; // ✅ tambahkan kategori di interface
 }
 
 interface CartItem extends MenuItem {
@@ -23,7 +22,7 @@ interface Order {
   status: string;
   created_at: string;
   invoice_url?: string;
-  table_number?: number; // tambahkan nomor meja
+  table_number?: number;
 }
 
 export default function Home() {
@@ -33,9 +32,9 @@ export default function Home() {
   const [successMessage, setSuccessMessage] = useState('');
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [paidOrderMode, setPaidOrderMode] = useState(false);
-  const [selectedTable, setSelectedTable] = useState<number | ''>(''); // nomor meja
+  const [selectedTable, setSelectedTable] = useState<number | ''>('');
 
-  // Cek apakah ada parameter ?paid_order (jika ya, mode lihat struk)
+  // Cek apakah ada parameter ?paid_order untuk mode struk
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paidOrderId = params.get('paid_order');
@@ -57,16 +56,21 @@ export default function Home() {
     }
   }, []);
 
-  // Load menu dari Supabase
+  // Load data menu dari Supabase
   useEffect(() => {
     if (paidOrderMode) return;
     supabase
       .from('menu')
       .select('*')
-      .then(({ data }) => data && setMenuList(data));
+      .then(({ data }) => {
+        if (data) {
+          console.log('📦 Menu loaded:', data);
+          setMenuList(data);
+        }
+      });
   }, [paidOrderMode]);
 
-  // Tambahkan item ke keranjang
+  // Tambah item ke keranjang
   const addToCart = (item: MenuItem) => {
     setCart(prev => {
       const found = prev.find(ci => ci.id === item.id);
@@ -91,7 +95,7 @@ export default function Home() {
     );
   };
 
-  // Fungsi untuk proses checkout
+  // Proses checkout dan simpan order ke Supabase
   const handleCheckout = async () => {
     if (!selectedTable) {
       alert('⚠️ Mohon pilih nomor meja terlebih dahulu.');
@@ -100,7 +104,7 @@ export default function Home() {
 
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-    console.log('🛒 Checkout triggered. Total:', total);
+    console.log('🛒 Checkout initiated. Total:', total);
     console.log('📦 Items:', cart);
     console.log('🪑 Meja:', selectedTable);
 
@@ -121,13 +125,11 @@ export default function Home() {
 
     const insertedOrder = data[0];
 
-    // Simpan external_id = id
     await supabase
       .from('orders')
       .update({ external_id: insertedOrder.id })
       .eq('id', insertedOrder.id);
 
-    // Generate invoice via API
     const invoiceRes = await fetch('/api/create-invoice', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -162,6 +164,7 @@ export default function Home() {
         Daftar Menu Resto 🍽️
       </h1>
 
+      {/* Notifikasi sukses */}
       {successMessage && (
         <div className="mb-4 p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded">
           {successMessage}
@@ -179,11 +182,13 @@ export default function Home() {
             <p className="text-sm text-gray-600 mb-3">🪑 Meja: {lastOrder.table_number}</p>
           )}
           <ul className="list-disc pl-5 space-y-1 mb-2">
-            {lastOrder.items.map((item, idx) => (
-              <li key={idx}>
-                {item.name} x{item.quantity} – Rp {(item.price * item.quantity).toLocaleString()}
-              </li>
-            ))}
+            {[...lastOrder.items]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((item, idx) => (
+                <li key={idx}>
+                  {item.name} x{item.quantity} – Rp {(item.price * item.quantity).toLocaleString()}
+                </li>
+              ))}
           </ul>
           <p className="font-semibold">Total: Rp {lastOrder.total.toLocaleString()}</p>
 
@@ -202,7 +207,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* TOMBOL KEMBALI KE MENU */}
+      {/* TOMBOL KEMBALI */}
       {paidOrderMode && (
         <div className="text-center mt-6">
           <button
@@ -265,33 +270,46 @@ export default function Home() {
             )}
           </div>
 
-          {/* DAFTAR MENU */}
-          <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
-            {menuList.map((menu) => (
-              <div
-                key={menu.id}
-                className="border rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition"
-              >
-                <img
-                  src={menu.image_url}
-                  alt={menu.name}
-                  className="w-full h-40 object-cover"
-                />
-                <div className="p-4">
-                  <h2 className="text-lg font-semibold">{menu.name}</h2>
-                  <p className="text-sm text-gray-500">
-                    Rp {menu.price.toLocaleString()}
-                  </p>
-                  <button
-                    onClick={() => addToCart(menu)}
-                    className="mt-3 bg-rose-500 text-white px-4 py-1 rounded hover:bg-rose-600"
-                  >
-                    Pesan
-                  </button>
+          {/* MENU PER KATEGORI */}
+          {['Makanan', 'Minuman', 'Snack'].map((kategori) => {
+            const menuPerKategori = menuList
+              .filter((item) => item.category === kategori)
+              .sort((a, b) => a.name.localeCompare(b.name));
+
+            if (menuPerKategori.length === 0) return null;
+
+            return (
+              <div key={kategori} className="mb-8">
+                <h2 className="text-xl font-bold text-rose-600 mb-3">{kategori}</h2>
+                <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
+                  {menuPerKategori.map((menu) => (
+                    <div
+                      key={menu.id}
+                      className="border rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition"
+                    >
+                      <img
+                        src={menu.image_url}
+                        alt={menu.name}
+                        className="w-full h-40 object-cover"
+                      />
+                      <div className="p-4">
+                        <h2 className="text-lg font-semibold">{menu.name}</h2>
+                        <p className="text-sm text-gray-500">
+                          Rp {menu.price.toLocaleString()}
+                        </p>
+                        <button
+                          onClick={() => addToCart(menu)}
+                          className="mt-3 bg-rose-500 text-white px-4 py-1 rounded hover:bg-rose-600"
+                        >
+                          Pesan
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </>
       )}
     </div>
