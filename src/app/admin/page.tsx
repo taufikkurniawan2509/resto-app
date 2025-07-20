@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 interface Order {
   id: string;
-  items: { name: string; price: number; quantity: number }[]; // ✅ ditambah quantity
+  items: { name: string; price: number; quantity: number }[];
   total: number;
   created_at: string;
   status: string;
@@ -15,7 +15,7 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [lastPrintedId, setLastPrintedId] = useState<string | null>(null);
 
-  // 🔄 Fetch order dari Supabase
+  // 🔄 Fetch orders dari Supabase
   const fetchOrders = async () => {
     console.log("📥 Fetching all orders from Supabase...");
     const { data, error } = await supabase
@@ -31,7 +31,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🔧 Update status order (misal: Proses → Selesai)
+  // 🔧 Update status order
   const updateStatus = async (orderId: string, newStatus: string) => {
     console.log(`🔁 Update status order ${orderId} ke "${newStatus}"`);
     const { error } = await supabase
@@ -46,9 +46,9 @@ export default function AdminPage() {
     }
   };
 
-  // 🖨️ Cetak struk ke PDF
-  const handlePrint = async (order: Order) => {
-    console.log("🖨️ Mencetak struk:", order.id);
+  // 🖨️ Cetak PDF pakai html2pdf.js
+  const handlePrintPDF = async (order: Order) => {
+    console.log("🖨️ (PDF) Mencetak struk ke PDF:", order.id);
     const html2pdf = (await import("html2pdf.js")).default;
     const el = document.getElementById(`struk-${order.id}`);
     if (el) {
@@ -65,7 +65,47 @@ export default function AdminPage() {
     }
   };
 
-  // 🧠 Listen perubahan realtime dari Supabase
+  // 🧾 Cetak langsung ke printer thermal (58mm)
+  const handlePrintThermal = (order: Order) => {
+    console.log("🧾 (Thermal) Mencetak struk ke printer thermal:", order.id);
+    const el = document.getElementById(`struk-${order.id}`);
+    if (!el) return;
+
+    const printWindow = window.open("", "PRINT", "width=400,height=600");
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Struk - ${order.id}</title>
+          <style>
+            body {
+              font-family: monospace;
+              font-size: 10px;
+              width: 220px;
+              padding: 5px;
+            }
+            hr {
+              border: none;
+              border-top: 1px dashed black;
+              margin: 4px 0;
+            }
+          </style>
+        </head>
+        <body>${el.innerHTML}</body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+
+    printWindow.onload = () => {
+      printWindow.print();
+      printWindow.close();
+      console.log("✅ Thermal print selesai");
+    };
+  };
+
+  // 🧠 Supabase realtime listener
   useEffect(() => {
     fetchOrders();
 
@@ -80,9 +120,9 @@ export default function AdminPage() {
 
           const newOrder = payload.new as Order;
           if (newOrder.status === "Sudah Bayar" && newOrder.id !== lastPrintedId) {
-            console.log("🖨️ Auto cetak untuk order:", newOrder.id);
+            console.log("🖨️ Auto cetak struk:", newOrder.id);
             setLastPrintedId(newOrder.id);
-            handlePrint(newOrder);
+            handlePrintThermal(newOrder); // ✅ default auto-print ke thermal
           }
         }
       )
@@ -104,12 +144,10 @@ export default function AdminPage() {
           key={order.id}
           className="border p-4 rounded-xl shadow-sm bg-white space-y-2"
         >
-          {/* ⏰ Info waktu order */}
           <p className="text-sm text-gray-500">
             ⏰ {new Date(order.created_at).toLocaleString()}
           </p>
 
-          {/* 🧾 Daftar item dan jumlahnya */}
           <ul className="list-disc pl-5">
             {order.items.map((item, idx) => (
               <li key={idx}>
@@ -118,14 +156,12 @@ export default function AdminPage() {
             ))}
           </ul>
 
-          {/* 💰 Total dan status */}
           <p className="font-semibold text-rose-600">
             Total: Rp {order.total.toLocaleString()}
           </p>
           <p className="text-sm">Status: {order.status}</p>
 
-          {/* 🔘 Tombol ubah status dan cetak */}
-          <div className="flex gap-2 mt-2">
+          <div className="flex flex-wrap gap-2 mt-2">
             {["Pending", "Proses", "Selesai", "Sudah Bayar"].map((s) => (
               <button
                 key={s}
@@ -139,15 +175,23 @@ export default function AdminPage() {
                 {s}
               </button>
             ))}
+
+            {/* Tombol Cetak */}
             <button
-              onClick={() => handlePrint(order)}
-              className="ml-auto bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1 rounded"
+              onClick={() => handlePrintPDF(order)}
+              className="ml-auto bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded"
             >
-              🖨️ Cetak Struk
+              🖨️ PDF
+            </button>
+            <button
+              onClick={() => handlePrintThermal(order)}
+              className="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1 rounded"
+            >
+              🧾 Thermal
             </button>
           </div>
 
-          {/* 📄 Template untuk cetak PDF */}
+          {/* 🧾 Template Struk */}
           <div
             id={`struk-${order.id}`}
             style={{
@@ -165,25 +209,22 @@ export default function AdminPage() {
             <div style={{ textAlign: "center", fontWeight: "bold" }}>☕ Resto Cinta</div>
             <div style={{ textAlign: "center" }}>Jl. Mawar No. 99</div>
             <div style={{ textAlign: "center" }}>0812-xxxx-xxxx</div>
-            <hr style={{ border: "none", borderTop: "1px dashed black", margin: "4px 0" }} />
+            <hr />
             <div>Order #: {order.id.slice(0, 6).toUpperCase()}</div>
             <div>{new Date(order.created_at).toLocaleString()}</div>
-            <hr style={{ border: "none", borderTop: "1px dashed black", margin: "4px 0" }} />
-
-            {/* 💡 Cetak item x jumlah dan harga total per item */}
+            <hr />
             {order.items.map((item, idx) => (
               <div key={idx} style={{ display: "flex", justifyContent: "space-between" }}>
                 <span>{item.name} x{item.quantity}</span>
                 <span>Rp {(item.price * item.quantity).toLocaleString()}</span>
               </div>
             ))}
-
-            <hr style={{ border: "none", borderTop: "1px dashed black", margin: "4px 0" }} />
+            <hr />
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold" }}>
               <span>Total</span>
               <span>Rp {order.total.toLocaleString()}</span>
             </div>
-            <hr style={{ border: "none", borderTop: "1px dashed black", margin: "4px 0" }} />
+            <hr />
             <div style={{ textAlign: "center" }}>-- Terima Kasih --</div>
           </div>
         </div>
