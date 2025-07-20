@@ -1,0 +1,49 @@
+/* print.css */
+
+@media print {
+  body {
+    font-family: monospace;
+    font-size: 10px;
+    width: 220px;
+    margin: 0;
+    padding: 8px;
+    color: black;
+    background: white;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px dashed black;
+    margin: 4px 0;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .struk-container {
+    width: 100%;
+    padding: 0;
+  }
+
+  .struk-header {
+    text-align: center;
+    font-weight: bold;
+  }
+
+  .struk-item {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .struk-total {
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .struk-footer {
+    text-align: center;
+    margin-top: 8px;
+  }
+}

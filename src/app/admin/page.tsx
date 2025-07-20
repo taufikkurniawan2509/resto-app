@@ -66,44 +66,43 @@ export default function AdminPage() {
   };
 
   // 🧾 Cetak langsung ke printer thermal (58mm)
-  const handlePrintThermal = (order: Order) => {
-    console.log("🧾 (Thermal) Mencetak struk ke printer thermal:", order.id);
-    const el = document.getElementById(`struk-${order.id}`);
-    if (!el) return;
+const handlePrintThermal = (order: Order) => {
+  console.log("🧾 (Thermal) Mencetak struk ke printer thermal:", order.id);
+  const el = document.getElementById(`struk-${order.id}`);
+  if (!el) {
+    console.error("❌ Element struk tidak ditemukan:", order.id);
+    return;
+  }
 
-    const printWindow = window.open("", "PRINT", "width=400,height=600");
-    if (!printWindow) return;
+  // 🪟 Buka jendela cetak baru
+  const printWindow = window.open("", "PRINT", "width=400,height=600");
+  if (!printWindow) {
+    console.error("❌ Gagal buka jendela print");
+    return;
+  }
 
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Struk - ${order.id}</title>
-          <style>
-            body {
-              font-family: monospace;
-              font-size: 10px;
-              width: 220px;
-              padding: 5px;
-            }
-            hr {
-              border: none;
-              border-top: 1px dashed black;
-              margin: 4px 0;
-            }
-          </style>
-        </head>
-        <body>${el.innerHTML}</body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
+  // 🧠 Inject konten dan stylesheet khusus print
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Struk - ${order.id}</title>
+        <link rel="stylesheet" href="/print.css" media="print">
+      </head>
+      <body>${el.innerHTML}</body>
+    </html>
+  `);
 
-    printWindow.onload = () => {
-      printWindow.print();
-      printWindow.close();
-      console.log("✅ Thermal print selesai");
-    };
+  printWindow.document.close();
+  printWindow.focus();
+
+  // ⏱️ Tunggu render, lalu print
+  printWindow.onload = () => {
+    printWindow.print();
+    printWindow.close();
+    console.log("✅ Thermal print selesai untuk order:", order.id);
   };
+};
+
 
   // 🧠 Supabase realtime listener
   useEffect(() => {
