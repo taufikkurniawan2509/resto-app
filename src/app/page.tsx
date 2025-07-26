@@ -8,7 +8,7 @@ interface MenuItem {
   name: string;
   price: number;
   image_url: string;
-  category: string; // ✅ tambahkan kategori di interface
+  category: string;
 }
 
 interface CartItem extends MenuItem {
@@ -27,6 +27,8 @@ interface Order {
 
 export default function Home() {
   const [menuList, setMenuList] = useState<MenuItem[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
@@ -34,7 +36,7 @@ export default function Home() {
   const [paidOrderMode, setPaidOrderMode] = useState(false);
   const [selectedTable, setSelectedTable] = useState<number | ''>('');
 
-  // Cek apakah ada parameter ?paid_order untuk mode struk
+  // Cek ?paid_order di URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paidOrderId = params.get('paid_order');
@@ -56,7 +58,7 @@ export default function Home() {
     }
   }, []);
 
-  // Load data menu dari Supabase
+  // Load menu & kategori
   useEffect(() => {
     if (paidOrderMode) return;
     supabase
@@ -66,11 +68,13 @@ export default function Home() {
         if (data) {
           console.log('📦 Menu loaded:', data);
           setMenuList(data);
+          const uniqueCategories = Array.from(new Set(data.map(item => item.category)));
+          setCategories(uniqueCategories);
+          setSelectedCategory(uniqueCategories[0]); // default pertama
         }
       });
   }, [paidOrderMode]);
 
-  // Tambah item ke keranjang
   const addToCart = (item: MenuItem) => {
     setCart(prev => {
       const found = prev.find(ci => ci.id === item.id);
@@ -84,7 +88,6 @@ export default function Home() {
     });
   };
 
-  // Kurangi jumlah item dari keranjang
   const removeFromCart = (itemId: number) => {
     setCart(prev =>
       prev
@@ -95,7 +98,6 @@ export default function Home() {
     );
   };
 
-  // Proses checkout dan simpan order ke Supabase
   const handleCheckout = async () => {
     if (!selectedTable) {
       alert('⚠️ Mohon pilih nomor meja terlebih dahulu.');
@@ -103,10 +105,6 @@ export default function Home() {
     }
 
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-    console.log('🛒 Checkout initiated. Total:', total);
-    console.log('📦 Items:', cart);
-    console.log('🪑 Meja:', selectedTable);
 
     const { data, error } = await supabase
       .from('orders')
@@ -182,7 +180,7 @@ export default function Home() {
             <p className="text-sm text-gray-600 mb-3">🪑 Meja: {lastOrder.table_number}</p>
           )}
           <ul className="list-disc pl-5 space-y-1 mb-2">
-            {[...lastOrder.items]
+            {lastOrder.items
               .sort((a, b) => a.name.localeCompare(b.name))
               .map((item, idx) => (
                 <li key={idx}>
@@ -219,7 +217,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* FORM ORDER */}
       {!paidOrderMode && (
         <>
           {/* PILIH MEJA */}
@@ -270,19 +267,34 @@ export default function Home() {
             )}
           </div>
 
-          {/* MENU PER KATEGORI */}
-          {['Makanan', 'Minuman', 'Snack'].map((kategori) => {
-            const menuPerKategori = menuList
-              .filter((item) => item.category === kategori)
-              .sort((a, b) => a.name.localeCompare(b.name));
+          {/* TOMBOL KATEGORI */}
+          {categories.length > 0 && (
+            <div className="flex justify-center flex-wrap gap-3 my-6">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-4 py-2 rounded-full font-medium border ${
+                    selectedCategory === cat
+                      ? 'bg-rose-600 text-white'
+                      : 'bg-white text-gray-700 border-gray-300'
+                  } hover:bg-rose-100`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          )}
 
-            if (menuPerKategori.length === 0) return null;
-
-            return (
-              <div key={kategori} className="mb-8">
-                <h2 className="text-xl font-bold text-rose-600 mb-3">{kategori}</h2>
-                <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
-                  {menuPerKategori.map((menu) => (
+          {/* MENU SESUAI KATEGORI */}
+          {selectedCategory && (
+            <div className="mb-8">
+              <h2 className="text-xl font-bold text-rose-600 mb-3">{selectedCategory}</h2>
+              <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
+                {menuList
+                  .filter((item) => item.category === selectedCategory)
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((menu) => (
                     <div
                       key={menu.id}
                       className="border rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition"
@@ -306,10 +318,9 @@ export default function Home() {
                       </div>
                     </div>
                   ))}
-                </div>
               </div>
-            );
-          })}
+            </div>
+          )}
         </>
       )}
     </div>

@@ -161,7 +161,7 @@ const handlePrintThermal = (order: Order) => {
           <p className="text-sm">Status: {order.status}</p>
 
           <div className="flex flex-wrap gap-2 mt-2">
-            {["Pending", "Proses", "Selesai", "Sudah Bayar"].map((s) => (
+            {["Pending", "Proses", "Sudah Bayar"].map((s) => (
               <button
                 key={s}
                 onClick={() => updateStatus(order.id, s)}
