@@ -94,22 +94,16 @@ export default function AdminPage() {
           <div key={order.id} className="border rounded-xl p-4 mb-6 bg-white shadow">
             <div id={`struk-${order.id}`} className="printable">
               <div className="center bold">Karis Jaya Shop</div>
-              <div className="center">Jl. Dr. Ir. H. Soekarno No.19, Medokan Semampir</div>
-              <div className="center">Surabaya</div>
+              <div className="center">Jl. Dr. Ir. H. Soekarno No.19, Jakarta Selatan</div>
               <div className="center">No. Telp 0812345678</div>
-              <div className="center">16413520230802084636</div>
               <hr />
               <div className="flex justify-between text-xs">
                 <div>
-                  {new Date(order.created_at).toLocaleDateString()}<br />
+                  {new Date(order.created_at).toLocaleDateString()} - 
                   {new Date(order.created_at).toLocaleTimeString()}
                 </div>
-                <div>
-                  kasir<br />
-                  Sheila
-                </div>
+      
               </div>
-              <div className="text-xs mt-1">Jl. Diponegoro 1, Sby</div>
               <div className="text-xs mt-1">No. Nota: ORD-{order.id.slice(0, 8).toUpperCase()}</div>
               {order.table_number && (
                 <div className="text-xs">No. Meja: {order.table_number}</div>
@@ -120,7 +114,7 @@ export default function AdminPage() {
                   <div key={idx} className="item">
                     <div className="bold">{idx + 1}. {item.name}</div>
                     <div>
-                      {item.quantity} x Rp {item.price.toLocaleString()}<span className="right"> &nbsp;&nbsp;&nbsp;&nbsp;Rp {(item.price * item.quantity).toLocaleString()}</span>
+                      &nbsp;&nbsp;{item.quantity} x Rp {item.price.toLocaleString()}<span className="right"> &nbsp;&nbsp;&nbsp;&nbsp;Rp {(item.price * item.quantity).toLocaleString()}</span>
                     </div>
                   </div>
                 ))}
@@ -128,8 +122,7 @@ export default function AdminPage() {
               <hr />
               <div className="text-sm">
                 Total QTY : {totalQty}<br />
-                Sub Total : Rp {order.total.toLocaleString()}<br />
-                <div className="bold">Total : Rp {order.total.toLocaleString()}</div>
+                Total : Rp {order.total.toLocaleString()}<br />
               </div>
             </div>
 
