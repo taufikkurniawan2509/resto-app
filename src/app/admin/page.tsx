@@ -107,11 +107,11 @@ export default function AdminPage() {
         return (
           <div key={order.id} className="border rounded-xl p-4 mb-6 bg-white shadow">
             <div id={`struk-${order.id}`} className="printable">
-              <div className="center bold">========</div>
+              <div className="center bold">&nbsp;</div>
               <div className="center bold">Karis Jaya Shop</div>
               <div className="center">Jl. Dr. Ir. H. Soekarno No.19, Medokan Semampir</div>
               <div className="center">No. Telp 0812345678</div>
-              <div className="line">-------------------</div>
+              <div className="line">---------------------------------------</div>
               <div className="flex justify-between text-xs">
                 <div>
                   {new Date(order.created_at).toLocaleDateString()}<br />
@@ -122,7 +122,7 @@ export default function AdminPage() {
               {order.table_number && (
                 <div className="text-xs">No. Meja: {order.table_number}</div>
               )}
-              <div className="line">----------------------------------------</div>
+              <div className="line">---------------------------------------</div>
               <div className="text-sm mt-2">
                 {order.items.map((item, idx) => (
                   <div key={idx} className="item">
@@ -134,13 +134,13 @@ export default function AdminPage() {
                   </div>
                 ))}
               </div>
-              <div className="line">-------------</div>
+              <div className="line">---------------------------------------</div>
               <div className="text-sm">
                 Total QTY : {totalQty}<br />
                 Sub Total : Rp {order.total.toLocaleString()}<br />
                 <span className="bold">Total : Rp {order.total.toLocaleString()}</span><br />
-                ==========<br/>
-                ----------<br/>
+                <div className="line">---------------------------------------</div>
+                <div className="line">---------------------------------------</div>
               </div>
             </div>
 
