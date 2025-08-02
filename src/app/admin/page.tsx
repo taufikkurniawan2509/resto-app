@@ -54,11 +54,11 @@ export default function AdminPage() {
         .bold { font-weight: bold; }
         .item { margin-bottom: 6px; }
         .right { text-align: right; }
-        hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
+        .line { text-align: center; }
       </style></head>
       <body onload="window.print()">
         <script>window.onafterprint = () => window.close();</script>
-        ${el.innerHTML}
+        ${el.innerHTML.replaceAll('<hr />', '<div class="line">----------------------------------------</div>')}
       </body></html>
     `);
     win.document.close();
@@ -88,11 +88,11 @@ export default function AdminPage() {
         .bold { font-weight: bold; }
         .item { margin-bottom: 6px; }
         .right { text-align: right; }
-        hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
+        .line { text-align: center; }
       </style></head>
       <body onload="window.print()">
         <script>window.onafterprint = () => window.close();</script>
-        ${strukHTML}
+        ${strukHTML.replaceAll('<hr />', '<div class="line">----------------------------------------</div>')}
       </body></html>
     `);
     newWindow.document.close();
