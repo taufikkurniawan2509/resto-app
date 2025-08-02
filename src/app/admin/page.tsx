@@ -45,7 +45,7 @@ export default function AdminPage() {
       <style>
         body { font-size: 10px; padding: 10px; }
       </style></head>
-      <body onload="window.print(); window.close();">
+      <body onload="window.print(); setTimeout(() => window.close(), 1000)">
       ${el.innerHTML}
       </body></html>
     `);
@@ -67,7 +67,7 @@ export default function AdminPage() {
       <style>
         body { font-size: 10px; padding: 5px; }
       </style></head>
-      <body onload="window.print(); window.close()">
+      <body onload="window.print(); setTimeout(() => window.close(), 1000)">
         ${strukHTML}
       </body></html>
     `);
