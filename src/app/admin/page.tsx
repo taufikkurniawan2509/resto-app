@@ -43,7 +43,12 @@ export default function AdminPage() {
     win.document.write(`
       <html><head><title>Struk</title>
       <style>
-        body { font-size: 10px; padding: 10px; }
+        body { font-family: monospace; font-size: 10px; padding: 10px; }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .item { margin-bottom: 6px; }
+        .right { text-align: right; }
+        hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
       </style></head>
       <body onload="window.print(); setTimeout(() => window.close(), 1000)">
       ${el.innerHTML}
@@ -65,7 +70,12 @@ export default function AdminPage() {
     newWindow.document.write(`
       <html><head><title>Struk</title>
       <style>
-        body { font-size: 10px; padding: 5px; }
+        body { font-family: monospace; font-size: 10px; padding: 10px; }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .item { margin-bottom: 6px; }
+        .right { text-align: right; }
+        hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
       </style></head>
       <body onload="window.print(); setTimeout(() => window.close(), 1000)">
         ${strukHTML}
@@ -78,42 +88,69 @@ export default function AdminPage() {
     <div className="max-w-4xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-6 text-rose-600 text-center">🧾 Admin - Daftar Order</h1>
 
-      {orders.map((order) => (
-        <div key={order.id} className="border rounded-xl p-4 mb-6 bg-white shadow">
-          <div id={`struk-${order.id}`} className="printable">
-            <p className="text-xs text-gray-500 mb-1">
-              ID: {order.id.slice(0, 8).toUpperCase()} | Waktu: {new Date(order.created_at).toLocaleString()}
-            </p>
-            {order.table_number && (
-              <p className="text-xs text-gray-500">🪑 Meja: {order.table_number}</p>
-            )}
-            <ul className="text-sm mt-2 mb-2">
-              {order.items.map((item, idx) => (
-                <li key={idx}>
-                  {item.name} x{item.quantity} – Rp {(item.price * item.quantity).toLocaleString()}
-                </li>
-              ))}
-            </ul>
-            <p className="font-semibold text-sm">Total: Rp {order.total.toLocaleString()}</p>
-          </div>
+      {orders.map((order) => {
+        const totalQty = order.items.reduce((sum, item) => sum + item.quantity, 0);
+        return (
+          <div key={order.id} className="border rounded-xl p-4 mb-6 bg-white shadow">
+            <div id={`struk-${order.id}`} className="printable">
+              <div className="center bold">Karis Jaya Shop</div>
+              <div className="center">Jl. Dr. Ir. H. Soekarno No.19, Medokan Semampir</div>
+              <div className="center">Surabaya</div>
+              <div className="center">No. Telp 0812345678</div>
+              <div className="center">16413520230802084636</div>
+              <hr />
+              <div className="flex justify-between text-xs">
+                <div>
+                  {new Date(order.created_at).toLocaleDateString()}<br />
+                  {new Date(order.created_at).toLocaleTimeString()}
+                </div>
+                <div>
+                  kasir<br />
+                  Sheila
+                </div>
+              </div>
+              <div className="text-xs mt-1">Jl. Diponegoro 1, Sby</div>
+              <div className="text-xs mt-1">No. Nota: ORD-{order.id.slice(0, 8).toUpperCase()}</div>
+              {order.table_number && (
+                <div className="text-xs">No. Meja: {order.table_number}</div>
+              )}
+              <hr />
+              <div className="text-sm mt-2">
+                {order.items.map((item, idx) => (
+                  <div key={idx} className="item">
+                    <div className="bold">{idx + 1}. {item.name}</div>
+                    <div>
+                      {item.quantity} x Rp {item.price.toLocaleString()}<span className="right"> &nbsp;&nbsp;&nbsp;&nbsp;Rp {(item.price * item.quantity).toLocaleString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <hr />
+              <div className="text-sm">
+                Total QTY : {totalQty}<br />
+                Sub Total : Rp {order.total.toLocaleString()}<br />
+                <div className="bold">Total : Rp {order.total.toLocaleString()}</div>
+              </div>
+            </div>
 
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={() => handlePrintPDF(order)}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              🖨️ Cetak PDF
-            </button>
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => handlePrintPDF(order)}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                🖨️ Cetak PDF
+              </button>
 
-            <button
-              onClick={() => handlePrintThermal(order)}
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-            >
-              🧾 Cetak Thermal
-            </button>
+              <button
+                onClick={() => handlePrintThermal(order)}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              >
+                🧾 Cetak Thermal
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
