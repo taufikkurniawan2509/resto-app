@@ -107,6 +107,7 @@ export default function AdminPage() {
         return (
           <div key={order.id} className="border rounded-xl p-4 mb-6 bg-white shadow">
             <div id={`struk-${order.id}`} className="printable">
+              <div className="center bold">=============</div>
               <div className="center bold">Karis Jaya Shop</div>
               <div className="center">Jl. Dr. Ir. H. Soekarno No.19, Medokan Semampir</div>
               <div className="center">Surabaya</div>
@@ -143,6 +144,8 @@ export default function AdminPage() {
                 Total QTY : {totalQty}<br />
                 Sub Total : Rp {order.total.toLocaleString()}<br />
                 <span className="bold">Total : Rp {order.total.toLocaleString()}</span><br />
+                ====================<br/>
+                --------------------<br/>
               </div>
             </div>
 
