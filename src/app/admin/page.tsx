@@ -38,20 +38,27 @@ export default function AdminPage() {
     const el = document.getElementById(`struk-${order.id}`);
     if (!el) return;
 
-    const win = window.open('', '', 'width=300,height=600');
+    const win = window.open('', 'strukWindow', 'width=300,height=600');
     if (!win) return;
     win.document.write(`
-      <html><head><title>Struk</title>
+      <html><head><title>Struk - Karis Jaya Shop</title>
       <style>
-        body { font-family: monospace; font-size: 10px; padding: 10px; }
+        body {
+          font-family: 'Courier New', monospace;
+          font-size: 10px;
+          padding: 10px;
+          color: #000;
+          background: #fff;
+        }
         .center { text-align: center; }
         .bold { font-weight: bold; }
         .item { margin-bottom: 6px; }
         .right { text-align: right; }
         hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
       </style></head>
-      <body onload="window.print(); setTimeout(() => window.close(), 1000)">
-      ${el.innerHTML}
+      <body onload="window.print()">
+        <script>window.onafterprint = () => window.close();</script>
+        ${el.innerHTML}
       </body></html>
     `);
     win.document.close();
@@ -64,20 +71,27 @@ export default function AdminPage() {
     if (!el) return;
 
     const strukHTML = el.innerHTML;
-    const newWindow = window.open('', '', 'width=300,height=600');
+    const newWindow = window.open('', 'strukWindow', 'width=300,height=600');
     if (!newWindow) return;
 
     newWindow.document.write(`
-      <html><head><title>Struk</title>
+      <html><head><title>Struk - Karis Jaya Shop</title>
       <style>
-        body { font-family: monospace; font-size: 10px; padding: 10px; }
+        body {
+          font-family: 'Courier New', monospace;
+          font-size: 10px;
+          padding: 10px;
+          color: #000;
+          background: #fff;
+        }
         .center { text-align: center; }
         .bold { font-weight: bold; }
         .item { margin-bottom: 6px; }
         .right { text-align: right; }
         hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
       </style></head>
-      <body onload="window.print(); setTimeout(() => window.close(), 1000)">
+      <body onload="window.print()">
+        <script>window.onafterprint = () => window.close();</script>
         ${strukHTML}
       </body></html>
     `);
@@ -94,15 +108,19 @@ export default function AdminPage() {
           <div key={order.id} className="border rounded-xl p-4 mb-6 bg-white shadow">
             <div id={`struk-${order.id}`} className="printable">
               <div className="center bold">Karis Jaya Shop</div>
-              <div className="center">Jl. Dr. Ir. H. Soekarno No.19, Jakarta Selatan</div>
+              <div className="center">Jl. Dr. Ir. H. Soekarno No.19, Medokan Semampir</div>
+              <div className="center">Surabaya</div>
               <div className="center">No. Telp 0812345678</div>
               <hr />
               <div className="flex justify-between text-xs">
                 <div>
-                  {new Date(order.created_at).toLocaleDateString()} - 
+                  {new Date(order.created_at).toLocaleDateString()}<br />
                   {new Date(order.created_at).toLocaleTimeString()}
                 </div>
-      
+                <div>
+                  kasir<br />
+                  Sheila
+                </div>
               </div>
               <div className="text-xs mt-1">No. Nota: ORD-{order.id.slice(0, 8).toUpperCase()}</div>
               {order.table_number && (
@@ -113,8 +131,9 @@ export default function AdminPage() {
                 {order.items.map((item, idx) => (
                   <div key={idx} className="item">
                     <div className="bold">{idx + 1}. {item.name}</div>
-                    <div>
-                      &nbsp;&nbsp;{item.quantity} x Rp {item.price.toLocaleString()}<span className="right"> &nbsp;&nbsp;&nbsp;&nbsp;Rp {(item.price * item.quantity).toLocaleString()}</span>
+                    <div className="flex justify-between">
+                      <div>{item.quantity} x Rp {item.price.toLocaleString()}</div>
+                      <div>Rp {(item.price * item.quantity).toLocaleString()}</div>
                     </div>
                   </div>
                 ))}
@@ -122,7 +141,8 @@ export default function AdminPage() {
               <hr />
               <div className="text-sm">
                 Total QTY : {totalQty}<br />
-                Total : Rp {order.total.toLocaleString()}<br />
+                Sub Total : Rp {order.total.toLocaleString()}<br />
+                <span className="bold">Total : Rp {order.total.toLocaleString()}</span><br />
               </div>
             </div>
 
