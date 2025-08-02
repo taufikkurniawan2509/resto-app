@@ -127,9 +127,8 @@ export default function AdminPage() {
                 {order.items.map((item, idx) => (
                   <div key={idx} className="item">
                     <div className="bold">{idx + 1}. {item.name}</div>
-                    <div className="flex justify-between">
-                      <div>{item.quantity} x Rp {item.price.toLocaleString()}</div>
-                      <div>Rp {(item.price * item.quantity).toLocaleString()}</div>
+                    <div>&nbsp;&nbsp;{item.quantity} x Rp {item.price.toLocaleString()}
+                          <span className="right"> &nbsp;&nbsp;&nbsp;&nbsp;Rp {(item.price * item.quantity).toLocaleString()}</span>
                     </div>
                   </div>
                 ))}
